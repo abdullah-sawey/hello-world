@@ -1,0 +1,98 @@
+#if (ARDUINO &gt;= 100)
+#include 
+#else
+#include 
+#endif
+
+#include 
+#include 
+// Pin variables for motors.
+const int right_pwm_pin = 9;
+const int right_dir_pin1 = 12;
+const int right_dir_pin2 = 13;
+const int left_pwm_pin = 8;
+const int left_dir_pin1 = 11;
+const int left_dir_pin2 = 10;
+const bool left_fwd = true;
+const bool right_fwd = false;
+
+// Default_speed.
+const int default_vel = 250;
+
+ros::NodeHandle  nh;
+
+void MoveFwd(const size_t speed) {
+  digitalWrite(right_dir_pin1, !right_fwd);
+  digitalWrite(right_dir_pin2, right_fwd);
+  digitalWrite(left_dir_pin1, left_fwd);
+  digitalWrite(left_dir_pin2, !left_fwd);
+  analogWrite(right_pwm_pin, speed);
+  analogWrite(left_pwm_pin, speed);
+}
+
+void MoveStop() {
+    digitalWrite(right_dir_pin1, !right_fwd);
+  digitalWrite(right_dir_pin2, right_fwd);
+  digitalWrite(left_dir_pin1, left_fwd);
+  digitalWrite(left_dir_pin2, !left_fwd);
+  analogWrite(right_pwm_pin, 0);
+  analogWrite(left_pwm_pin, 0);
+}
+
+
+void cmd_vel_cb(const geometry_msgs::Twist & msg) {
+  // Read the message. Act accordingly.
+  // We only care about the linear x, and the rotational z.
+  const float x = msg.linear.x;
+  const float z_rotation = msg.angular.z;
+  // Flipped r and l. Added steering scaler.
+  float right_cmd = (-z_rotation*1.8)/2.0 + x;
+  float left_cmd = 2.0*x - right_cmd;
+  bool right_dir = (right_cmd>0)? right_fwd : !right_fwd;
+  bool left_dir = (left_cmd>0)? left_fwd : !left_fwd;
+
+digitalWrite(right_dir_pin1, !right_fwd);
+  digitalWrite(right_dir_pin2, right_fwd);
+  digitalWrite(left_dir_pin1, left_fwd);
+  digitalWrite(left_dir_pin2, !left_fwd);
+  
+  int right_write = int( default_vel * right_cmd);
+  int left_write = int( default_vel * left_cmd );
+ 
+  if (x == 0 && z_rotation == 0){
+      MoveStop();
+  }
+  
+  // Advertise the arduino command.
+  int abs_left_write =  abs(left_write);
+  int abs_right_write = abs(right_write);
+
+  int_msg_right.data = right_write;
+  int_msg_left.data = left_write;
+  // motor_right_pub.publish(&int_msg_right);
+  // motor_left_pub.publish(&int_msg_left);
+
+  analogWrite(right_pwm_pin, abs_right_write);
+  analogWrite(left_pwm_pin,  abs_left_write);
+}
+
+ros::Subscriber<geometry_msgs::Twist> sub("cmd_vel", cmd_vel_cb);
+
+void setup() {
+  pinMode(right_pwm_pin, OUTPUT);    // sets the digital pin 13 as output
+  pinMode(right_dir_pin1, OUTPUT);
+  pinMode(right_dir_pin2, OUTPUT);
+  pinMode(left_pwm_pin, OUTPUT);
+  pinMode(left_dir_pin1, OUTPUT);
+ pinMode(left_dir_pin2, OUTPUT);
+  // Set initial values for directions. Set both to forward.
+  digitalWrite(right_dir_pin, right_fwd);
+  digitalWrite(left_dir_pin, left_fwd);
+  nh.initNode();
+  nh.subscribe(sub);
+}
+
+void loop() {
+  nh.spinOnce();
+  delay(1);
+}
